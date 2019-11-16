@@ -1,0 +1,41 @@
+diff -Naur ../../netd_bk/server/CommandListener.cpp netd/server/CommandListener.cpp
+--- ../../netd_bk/server/CommandListener.cpp	2018-03-10 14:25:15.000000000 +0800
++++ netd/server/CommandListener.cpp	2019-05-04 11:05:55.939919206 +0800
+@@ -824,6 +824,37 @@
+         cli->sendMsg(rc, retbuf, false);
+         free(retbuf);
+         return 0;
++    } else if (!strcmp(argv[1], "links")) {
++        FILE *fp;
++        int sz;
++        char filename[] = "/data/flow_by_station.txt";
++
++        if (!gCtls->softapCtrl.isSoftapStarted()) {
++            asprintf(&retbuf, "Softap service is not running.");
++            cli->sendMsg(rc, retbuf, false);
++            free(retbuf);
++            return 0;
++        }
++        fp = fopen(filename, "rb");
++        if (fp == NULL) {
++            asprintf(&retbuf, "Could not open file %s", filename);
++            cli->sendMsg(rc, retbuf, false);
++            free(retbuf);
++            // printf("Could not open file %s", filename);
++            return 0;
++        }
++        fseek(fp, 0, SEEK_END);
++        int size = ftell(fp);
++        fseek(fp, 0, SEEK_SET);
++        char *arr = (char*)malloc(sizeof(char) * size);
++        memset(arr, 0, size);
++        sz = fread(arr, 1, size, fp);
++        ALOGV("links_size=%d, real_size=%d.\n", size, sz);
++        ALOGV("links_size, arr=%s.\n", arr);
++        fclose(fp);
++        cli->sendMsg(rc, arr, false);
++        free(arr);
++        return 0;
+     } else if (!strcmp(argv[1], "set")) {
+ #ifdef QSAP_WLAN
+         rc = qsapsetSoftap(argc, argv);

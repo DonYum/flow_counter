@@ -1,0 +1,10 @@
+--- external/tcpdump/Android.mk	2019-04-25 22:32:56.554592967 +0800
++++ external/tcpdump/Android.mk.new	2019-04-25 22:32:02.111121268 +0800
+@@ -167,6 +167,6 @@
+ LOCAL_SHARED_LIBRARIES += libssl libcrypto
+ LOCAL_STATIC_LIBRARIES += libpcap
+ LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
+-LOCAL_MODULE_TAGS := debug
++LOCAL_MODULE_TAGS := optional eng
+ LOCAL_MODULE := tcpdump
+ include $(BUILD_EXECUTABLE)

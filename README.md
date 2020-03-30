@@ -1,5 +1,7 @@
 # Android系统上，在wifi热点模式下，如何监控每个连接设备的实时网速？
 
+一个很有趣的业余小项目，拿来给大家看看awk的威力有多大。
+
 ## 问题描述
 
 Android系统上，在wifi热点模式下，如何监控每个连接设备的实时网速？
@@ -26,106 +28,11 @@ snniffer工具，比如tmpdump，具有很灵活的抓包能力，不止可以�
 
 #### 具体实施方法
 
-代码如下：
-
-```sh
-sudo tcpdump -i eno1 -e -n -q -tt | grep "IPv4" | awk '
-BEGIN {
-    # TODO：是否需要加载之前的流量统计信息？
-    # configurations
-    dbg = "true"                    # 设置为true之后会显示到stdout
-    flush_freq = 1000               # 刷新结果的频率，目前使用包计数的方法。 TODO：改成时间周期统计方法。
-    if_add_mac_header = "true"      # 是否把MAC header的长度计算到流量中
-    dst_dir = "./"                  # 统计结果存放位置
-    dst_by_station = dst_dir"flow_by_station.txt"       # 按照station统计到的结果
-    dst_by_pair = dst_dir"flow_by_pair.txt"             # 按照pair(src > dst)统计到的结果
-
-    if(dbg == "true") printf("Start>>>\n")
-} {
-    # init
-    src = $2
-    dst = substr($4, 0, 17)
-
-    # filters
-    # Ignore Broadcast.
-    if(src == "ff:ff:ff:ff:ff:ff" || dst == "ff:ff:ff:ff:ff:ff") next
-
-    count++
-    pair = src" > "dst
-
-    # Export flow info
-    # TODO：改成时间周期统计方法。
-    if(count % flush_freq == 0) {
-        _cont = "station \t tx_bytes \t tx_packs \t rx_bytes \t rx_packs"
-        print(_cont) > dst_by_station
-        if(dbg == "true") printf(_cont"\n")
-        for(x in flow_by_station) {
-            for(y in flow_by_station[x]) _flow[y] = flow_by_station[x][y]
-            _cont = x" "_flow["tx_bytes"]" "_flow["tx_packs"]" "_flow["rx_bytes"]" "_flow["rx_packs"]
-            print(_cont) >> dst_by_station
-            if(dbg == "true") printf(_cont"\n")
-        }
-        close(dst_by_station)      # fflush file
-
-        _cont = "src > dst \t bytes \t packs"
-        print(_cont) > dst_by_pair
-        if(dbg == "true") printf(_cont"\n")
-        for(x in flow_by_pair) {
-            _cont = x" "flow_by_pair[x]["bytes"]" "flow_by_pair[x]["packs"]
-            print _cont >> dst_by_pair
-            if(dbg == "true") printf(_cont"\n")
-        }
-        close(dst_by_pair)      # fflush file
-        if(dbg == "true") printf("\n")
-    }
-
-    # Whether consider MAC header length
-    pack_len = $12
-    if(if_add_mac_header == "true") pack_len = $12 + 66
-
-    # calc flow by stations
-    if(src in flow_by_station) {
-        flow_by_station[src]["tx_bytes"] += pack_len
-        flow_by_station[src]["tx_packs"] += 1
-    } else {
-        flow_by_station[src]["tx_bytes"] = pack_len
-        flow_by_station[src]["tx_packs"] = 1
-    }
-    if(dst in flow_by_station) {
-        flow_by_station[dst]["rx_bytes"] += pack_len
-        flow_by_station[dst]["rx_packs"] += 1
-        # next
-    } else {
-        flow_by_station[dst]["rx_bytes"] = pack_len
-        flow_by_station[dst]["rx_packs"] = 1
-    }
-
-    # calc flow by pairs
-    for(x in flow_by_pair) {
-        if(pair == x) {
-            flow_by_pair[pair]["bytes"] += pack_len
-            flow_by_pair[pair]["packs"] += 1
-            next
-        }
-    }
-    flow_by_pair[pair]["bytes"] = pack_len
-    flow_by_pair[pair]["packs"] = 1
-} END {
-    if(dbg == "true") printf("\nIPv4 total packet: %d\n", NR)
-}'
-```
+代码见`flowstats.sh`。
 
 **程序说明如下：**
 
-- `tcpdump`：
-
-**参数说明：**
-
-> -i eno1: 指定网卡
-> -e: 打印输出中包含数据包的数据链路层头部信息
-> -n: 不进行DNS解析，加快显示速度
-> -q: 以快速输出的方式运行，此选项仅显示数据包的协议概要信息，输出信息较短
-> -tt: 使用时间戳标记。如果显示具体时间可以使用-tttt
+- `tcpdump`：抓包
 
 **输出如下：**
 
@@ -193,18 +100,3 @@ d0:94:66:43:f4:5a > ac:1f:6b:13:b6:3e 1239872 5022
 ac:1f:6b:13:b6:3e > d0:94:66:43:f4:5a 909166 9484
 d0:94:66:43:e7:7d > ac:1f:6b:13:b6:3e 1241446 5033
 ```
-
-#### TODO：
-
-- 目前的统计周期是传输1000个数据包之后刷新统计结果，可以改成按时间周期统计方法。
-- 目前在CentOS上测试OK，下一步需要在Android系统上测试。
-
-#### 一些疑虑
-
-- 使用负载过重
-
-    tcmpdump抓包工具本身是很轻量的，网上有实测，普通使用模式下CPU占用在4%左右。我们在使用的时候抓包数据不落地，只会在固定时间间隔将统计结果写入文件，所以CPU占用会更低。
-
-## 主要参考资料：
-
-《tcpdump内容抓取和基于IP统计流量》：https://www.computerworld.com/article/2904085/how-to-monitor-wi-fi-traffic-on-android-devices.html
